@@ -5,16 +5,13 @@ namespace App\Models;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Tymon\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Support\Facades\Log;
 
-class User extends Authenticatable implements MustVerifyEmail
+class User extends Authenticatable implements MustVerifyEmail, JWTSubject
 {
     use Notifiable;
 
-    /**
-     * Los atributos que se pueden asignar masivamente.
-     *
-     * @var array
-     */
     protected $fillable = [
         'name',
         'email',
@@ -22,22 +19,12 @@ class User extends Authenticatable implements MustVerifyEmail
         'salt',
     ];
 
-    /**
-     * Los atributos que deberían ser ocultos para los arreglos.
-     *
-     * @var array
-     */
     protected $hidden = [
         'password',
         'salt',
         'remember_token',
     ];
 
-    /**
-     * Los atributos que deberían ser convertidos a tipos nativos.
-     *
-     * @var array
-     */
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
@@ -53,9 +40,27 @@ class User extends Authenticatable implements MustVerifyEmail
         // Generar un salt aleatorio
         $this->attributes['salt'] = bin2hex(random_bytes(16));
 
-        // Hash de la contraseña con el salt
-        $this->attributes['password'] = bcrypt($value . $this->attributes['salt']);
+        // Definir un pepper estático
+        $pepper = 'Ec07und'; // Cambia esto por tu propio pepper
+
+        // Hash de la contraseña con el salt y el pepper
+        $this->attributes['password'] = bcrypt($value . $this->attributes['salt'] . $pepper);
+
+        // Logging para depuración
+        Log::info('Salt generado: ' . $this->attributes['salt']);
+        Log::info('Contraseña hasheada: ' . $this->attributes['password']);
+    }
+
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    public function getJWTCustomClaims()
+    {
+        return [];
     }
 
     // Agrega otros métodos y relaciones que necesites para tu modelo.
 }
+

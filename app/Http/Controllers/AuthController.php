@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
@@ -8,8 +7,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Log;
-
-
+use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
@@ -28,51 +26,70 @@ class AuthController extends Controller
         }
 
         // Generar un salt aleatorio
-        $salt = bin2hex(random_bytes(16)); // Genera un salt aleatorio de 16 bytes
+        $salt = bin2hex(random_bytes(16));
 
-        // Crear la contraseña hasheada con bcrypt usando el salt y el pepper
+        // Crear la contraseña hasheada usando el salt y un pepper estático
         $hashedPassword = bcrypt($request->password . $salt . 'Ec07und');
 
-        // Crear el usuario
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => $hashedPassword,
-            'salt' => $salt, // Guarda el salt en la base de datos
-        ]);
+        try {
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => $hashedPassword,
+                'salt' => $salt,
+            ]);
 
-        return response()->json(['user' => $user], 201);
+            // Log para verificar el salt y la contraseña hasheada
+            Log::info('Salt generado: ' . $salt);
+            Log::info('Contraseña hasheada: ' . $hashedPassword);
+
+            $token = JWTAuth::fromUser($user);
+
+            return response()->json(['user' => $user, 'token' => $token], 201);
+        } catch (\Exception $e) {
+            Log::error('Error en el registro: ' . $e->getMessage());
+            return response()->json(['error' => 'Error en el registro'], 500);
+        }
     }
 
-    // Inicio de sesión
-    public function login(Request $request)
-    {
-        $credentials = $request->only('email', 'password');
+// Inicio de sesión
+public function login(Request $request)
+{
+    $credentials = $request->only('email', 'password');
+    $user = User::where('email', $credentials['email'])->first();
 
-        // Encuentra el usuario por email
-        $user = User::where('email', $credentials['email'])->first();
-
-        if (!$user) {
-            return response()->json(['error' => 'invalid_credentials'], 401);
-        }
-
-        // Combina la contraseña ingresada con el salt y el pepper
-        $hashedInputPassword = bcrypt($credentials['password'] . $user->salt . 'Ec07und');
-
-        // Verifica si la contraseña coincide
-        if ($hashedInputPassword !== $user->password) {
-            return response()->json(['error' => 'invalid_credentials'], 401);
-        }
-
-        // Genera el token
-        $token = JWTAuth::attempt($credentials);
-
-        if (!$token) {
-            return response()->json(['error' => 'could_not_create_token'], 500);
-        }
-
-        return response()->json(compact('token'));
+    if (!$user) {
+        return response()->json(['error' => 'invalid_credentials'], 401);
     }
+
+    // Log para verificar el proceso
+    Log::info('Intentando iniciar sesión con usuario: ' . $user->email);
+
+    // Crear la contraseña combinada sin encriptar
+    $inputPassword = $credentials['password'] . $user->salt . 'Ec07und';
+
+    // Log para verificar la contraseña combinada y la almacenada
+
+    Log::info('Contraseña combinada ingresada: ' . $inputPassword);
+
+    // Comparar el hash de la contraseña combinada con el hash almacenado en la base de datos
+    if (!Hash::check($inputPassword, $user->password)) {
+        Log::info('Contraseña almacenada en la base de datos oficial: ' . $user->password);
+        Log::warning('Contraseña no válida para el usuario: ' . $user->email);
+        return response()->json(['error' => 'invalid_credentials'], 401);
+    }
+
+    // Generar el token JWT
+    $token = JWTAuth::fromUser($user);
+    if (!$token) {
+        return response()->json(['error' => 'could_not_create_token'], 500);
+    }
+
+    return response()->json(compact('token'));
+}
+
+
+
 
     // Refrescar token
     public function refresh()
@@ -87,3 +104,5 @@ class AuthController extends Controller
         return response()->json(['message' => 'Successfully logged out']);
     }
 }
+
+
