@@ -8,34 +8,14 @@ use Illuminate\Database\Eloquent\Collection;
 
 interface ICampanaService
 {
-    /**
-     * Buscar una campaña por su ID.
-     *
-     * @param int $id
-     * @return Campana|null
-     */
+    // Métodos para la base de datos
     public function buscarPorId(int $id): ?Campana;
-
-    /**
-     * Crear o actualizar una campaña.
-     *
-     * @param CampanaRequest $request
-     * @return Campana
-     */
     public function crear(CampanaRequest $request): Campana;
-
-    /**
-     * Eliminar una campaña por su ID.
-     *
-     * @param int $id
-     * @return void
-     */
     public function eliminar(int $id): void;
-
-    /**
-     * Obtener todas las campañas.
-     *
-     * @return Collection
-     */
     public function obtenerTodas(): Collection;
+
+    // Métodos para la pila
+    public function agregarCampanaPila(CampanaRequest $request): array;
+    public function obtenerCampanaPila(): ?array;
+    public function sacarCampanaPila(): ?array;
 }

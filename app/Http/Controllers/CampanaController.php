@@ -2,75 +2,79 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Domain\Campana\ICampanaService;
+use App\Http\Requests\CampanaRequest;
 use Illuminate\Support\Facades\Log;
-use SplStack;
 
 class CampanaController extends Controller
 {
-    protected $pilaCampanas;
+    protected $campanaService;
 
-    public function __construct()
+    public function __construct(ICampanaService $campanaService)
     {
-        // Inicializa la pila de campañas
-        $this->pilaCampanas = new SplStack();
+        $this->campanaService = $campanaService;
         Log::info('CampanaController instanciado');
     }
 
-    // Agregar campaña a la pila
-    public function agregarCampana(Request $request)
-{
-    Log::info('Se está intentando agregar una campaña');
-
-    $campana = [
-        'titulo' => $request->input('titulo'),
-        'descripcion' => $request->input('descripcion'),
-        'ubicacion' => $request->input('ubicacion'),
-        'fecha_inicio' => $request->input('fecha_inicio'),
-        'fecha_creacion' => now(),
-    ];
-    $this->pilaCampanas->push($campana);
-
-    Log::info('Campaña agregada: ', ['campana' => $campana]);
-
-    return response()->json(['message' => 'Campaña agregada', 'campana' => $campana]);
-}
-
-    // Obtener la campaña en la cima
-    public function obtenerCampana()
+    // Métodos para la pila
+    public function agregarCampanaPila(CampanaRequest $request)
     {
-        // Verificar si la pila está vacía
-        if ($this->pilaCampanas->isEmpty()) {
-            // Loguear que no hay campañas disponibles
-            Log::warning('Intento de obtener campaña pero la pila está vacía');
-            return response()->json(['message' => 'No hay campañas disponibles']);
+        Log::info('Intentando agregar campaña a la pila');
+        $campana = $this->campanaService->agregarCampanaPila($request);
+        return response()->json(['message' => 'Campaña agregada a la pila', 'campana' => $campana]);
+    }
+
+    public function obtenerCampanaPila()
+    {
+        Log::info('Obteniendo campaña de la pila');
+        $campana = $this->campanaService->obtenerCampanaPila();
+
+        if (!$campana) {
+            return response()->json(['message' => 'No hay campañas disponibles en la pila']);
         }
-
-        // Obtener la campaña en la cima
-        $campana = $this->pilaCampanas->top();
-
-        // Loguear la campaña obtenida
-        Log::info('Obteniendo campaña:', $campana);
 
         return response()->json(['campana' => $campana]);
     }
 
-    // Sacar la campaña en la cima
-    public function sacarCampana()
+    public function sacarCampanaPila()
     {
-        // Verificar si la pila está vacía
-        if ($this->pilaCampanas->isEmpty()) {
-            // Loguear que no hay campañas para sacar
-            Log::warning('Intento de sacar campaña pero la pila está vacía');
-            return response()->json(['message' => 'No hay campañas para sacar']);
+        Log::info('Sacando campaña de la pila');
+        $campana = $this->campanaService->sacarCampanaPila();
+
+        if (!$campana) {
+            return response()->json(['message' => 'No hay campañas para sacar de la pila']);
         }
 
-        // Sacar la campaña de la pila
-        $campana = $this->pilaCampanas->pop();
+        return response()->json(['message' => 'Campaña sacada de la pila', 'campana' => $campana]);
+    }
 
-        // Loguear la campaña que se ha sacado
-        Log::info('Campaña sacada:', $campana);
+    // Métodos para la base de datos
+    public function buscarPorId($id)
+    {
+        $campana = $this->campanaService->buscarPorId($id);
 
-        return response()->json(['message' => 'Campaña sacada', 'campana' => $campana]);
+        if (!$campana) {
+            return response()->json(['message' => 'Campaña no encontrada'], 404);
+        }
+
+        return response()->json(['campana' => $campana]);
+    }
+
+    public function crear(CampanaRequest $request)
+    {
+        $campana = $this->campanaService->crear($request);
+        return response()->json(['message' => 'Campaña creada en la base de datos', 'campana' => $campana]);
+    }
+
+    public function eliminar($id)
+    {
+        $this->campanaService->eliminar($id);
+        return response()->json(['message' => 'Campaña eliminada']);
+    }
+
+    public function obtenerTodas()
+    {
+        $campanas = $this->campanaService->obtenerTodas();
+        return response()->json(['campanas' => $campanas]);
     }
 }
