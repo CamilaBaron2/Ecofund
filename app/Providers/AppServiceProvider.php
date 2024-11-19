@@ -2,8 +2,7 @@
 
 namespace App\Providers;
 
-use App\Domain\Campana\ICampanaService;
-use App\Services\CampanaService;
+use App\Services\ReciclajeService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -13,7 +12,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(ICampanaService::class, CampanaService::class);
+        $this->app->singleton(ReciclajeService::class, function ($app) {
+            return new ReciclajeService();
+        });
     }
 
     /**

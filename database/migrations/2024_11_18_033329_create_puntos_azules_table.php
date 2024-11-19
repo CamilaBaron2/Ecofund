@@ -1,27 +1,26 @@
 <?php
 
+// database/migrations/xxxx_xx_xx_xxxxxx_create_puntos_azules_table.php
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateCampanasTable extends Migration
+class CreatePuntosAzulesTable extends Migration
 {
     public function up()
     {
-        Schema::create('campanas', function (Blueprint $table) {
+        Schema::create('puntos_azules', function (Blueprint $table) {
             $table->id();
             $table->string('titulo');
             $table->text('descripcion');
             $table->string('ubicacion');
             $table->date('fecha_inicio');
-            $table->timestamp('fecha_creacion')->nullable();
-            $table->timestamp('fecha_actualizacion')->nullable();
+            $table->timestamps();
         });
-
     }
 
     public function down()
     {
-        Schema::dropIfExists('campanas');
+        Schema::dropIfExists('puntos_azules');
     }
 }

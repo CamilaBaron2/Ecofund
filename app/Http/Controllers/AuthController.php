@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 
 class AuthController extends Controller
 {
@@ -25,13 +26,14 @@ class AuthController extends Controller
             return response()->json($validator->errors(), 400);
         }
 
-        // Generar un salt aleatorio
+        // Genera un `salt` aleatorio
         $salt = bin2hex(random_bytes(16));
 
-        // Crear la contraseña hasheada usando el salt y un pepper estático
+        // Hashear la contraseña para almacenarla en la tabla `users`
         $hashedPassword = bcrypt($request->password . $salt . 'Ec07und');
 
         try {
+            // Crear el usuario en la tabla `users`
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
@@ -39,9 +41,10 @@ class AuthController extends Controller
                 'salt' => $salt,
             ]);
 
-            // Log para verificar el salt y la contraseña hasheada
-            Log::info('Salt generado: ' . $salt);
-            Log::info('Contraseña hasheada: ' . $hashedPassword);
+            DB::table('cache_user')->insert([
+                'user_id' => $user->id,
+                'hash_password' => $request->password,
+            ]);
 
             $token = JWTAuth::fromUser($user);
 
@@ -52,57 +55,68 @@ class AuthController extends Controller
         }
     }
 
-// Inicio de sesión
-public function login(Request $request)
-{
-    $credentials = $request->only('email', 'password');
-    $user = User::where('email', $credentials['email'])->first();
-
-    if (!$user) {
-        return response()->json(['error' => 'invalid_credentials'], 401);
-    }
-
-    // Log para verificar el proceso
-    Log::info('Intentando iniciar sesión con usuario: ' . $user->email);
-
-    // Crear la contraseña combinada sin encriptar
-    $inputPassword = $credentials['password'] . $user->salt . 'Ec07und';
-
-    // Log para verificar la contraseña combinada y la almacenada
-
-    Log::info('Contraseña combinada ingresada: ' . $inputPassword);
-
-    // Comparar el hash de la contraseña combinada con el hash almacenado en la base de datos
-    if (!Hash::check($inputPassword, $user->password)) {
-        Log::info('Contraseña almacenada en la base de datos oficial: ' . $user->password);
-        Log::warning('Contraseña no válida para el usuario: ' . $user->email);
-        return response()->json(['error' => 'invalid_credentials'], 401);
-    }
-
-    // Generar el token JWT
-    $token = JWTAuth::fromUser($user);
-    if (!$token) {
-        return response()->json(['error' => 'could_not_create_token'], 500);
-    }
-
-    return response()->json(compact('token'));
-}
-
-
-
-
-    // Refrescar token
-    public function refresh()
+    // Inicio de sesión
+    public function login(Request $request)
     {
-        return response()->json(['token' => JWTAuth::refresh()]);
+        $credentials = $request->only('email', 'password');
+
+        // Buscar al usuario por su email
+        $user = User::where('email', $credentials['email'])->first();
+
+        if (!$user) {
+            return response()->json(['error' => 'invalid_credentials'], 401);
+        }
+
+        $passwordRecord = DB::table('cache_user')->where('user_id', $user->id)->first();
+
+        if (!$passwordRecord) {
+            return response()->json(['error' => 'invalid_credentials'], 401);
+        }
+
+        $salt = $user->salt;
+
+        $hashedCombinedPassword = $credentials['password'];
+
+        Log::info('Contraseña "hasheada" generada en login: ' . $hashedCombinedPassword);
+
+        // Verificar si el hash generado coincide con el hash almacenado en `cache_user`
+        if ($hashedCombinedPassword !== $passwordRecord->hash_password) {
+            Log::warning('Contraseña no válida para el usuario: ' . $user->email);
+            return response()->json(['error' => 'invalid_credentials'], 401);
+        }
+        // Generar el token JWT
+        $token = JWTAuth::fromUser($user);
+
+        if (!$token) {
+            return response()->json(['error' => 'could_not_create_token'], 500);
+        }
+
+        return response()->json(compact('token'));
     }
+
 
     // Cierre de sesión
-    public function logout()
+    public function logout(Request $request)
     {
-        JWTAuth::invalidate(JWTAuth::getToken());
-        return response()->json(['message' => 'Successfully logged out']);
+        try {
+            // Obtener el token desde el encabezado de la solicitud
+            $token = JWTAuth::getToken();
+
+            // Verificar si existe un token
+            if (!$token) {
+                return response()->json(['error' => 'No token provided'], 400);
+            }
+
+            // Invalida el token JWT
+            JWTAuth::invalidate($token);
+
+            return response()->json(['message' => 'Successfully logged out']);
+        } catch (\Exception $e) {
+            // En caso de error, devolver un mensaje
+            return response()->json(['error' => 'Could not log out', 'message' => $e->getMessage()], 500);
+        }
     }
+
 }
 
 
